@@ -57,3 +57,8 @@ def obtener_ultimo_rem(max_intentos=6):
             print("Error:", e)
 
     raise HTTPException(status_code=404, detail="No se encontró un REM válido")
+
+@app.get("/rem/latest")
+def get_latest_rem():
+    return obtener_ultimo_rem()
+
