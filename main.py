@@ -1,80 +1,61 @@
 from fastapi import FastAPI, HTTPException
-import pandas as pd
 import requests
+import pandas as pd
+from bs4 import BeautifulSoup
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
-import warnings
+import re
 
-warnings.filterwarnings("ignore")
-
-# =========================
-# 1. Crear la app
-# =========================
 app = FastAPI(
     title="REM BCRA API",
     description="API para obtener el último Relevamiento de Expectativas de Mercado",
-    version="1.0.0"
+    version="1.1.0"
 )
-
-# =========================
-# 2. Constantes
-# =========================
-MESES = {
-    1: "ene", 2: "feb", 3: "mar", 4: "abr",
-    5: "may", 6: "jun", 7: "jul", 8: "ago",
-    9: "sep", 10: "oct", 11: "nov", 12: "dic"
-}
 
 BASE_URL = "https://www.bcra.gob.ar/archivos/Pdfs/PublicacionesEstadisticas/"
 
 
-# =========================
-# 3. Lógica principal
-# =========================
-def obtener_ultimo_rem(max_intentos=6):
-    fecha = datetime.today().replace(day=1)
-
+def obtener_ultimo_rem():
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        "User-Agent": "Mozilla/5.0"
     }
 
-    for _ in range(max_intentos):
-        fecha -= relativedelta(months=1)
+    # 1. Obtener listado de archivos
+    r = requests.get(BASE_URL, headers=headers, timeout=15)
+    if r.status_code != 200:
+        raise HTTPException(status_code=500, detail="No se pudo acceder al directorio del BCRA")
 
-        mes = MESES[fecha.month]
-        anio = fecha.year
+    soup = BeautifulSoup(r.text, "html.parser")
 
-        nombre = f"tablas-relevamiento-expectativas-mercado-{mes}-{anio}.xlsx"
-        url = BASE_URL + nombre
+    links = [
+        a["href"] for a in soup.find_all("a", href=True)
+        if "relevamiento" in a["href"].lower() and a["href"].endswith(".xlsx")
+    ]
 
-        try:
-            r = requests.get(url, headers=headers, stream=True, timeout=10)
+    if not links:
+        raise HTTPException(status_code=404, detail="No se encontraron archivos REM")
 
-            if r.status_code == 200:
-                df = pd.read_excel(url, sheet_name="Cuadros de resultados", header=None)
+    # 2. Ordenar por fecha implícita (último es el más nuevo)
+    links.sort(reverse=True)
 
-                periodos = df.iloc[6:13, 1]
-                valores = df.iloc[6:13, 4]
+    archivo = links[0]
+    url = BASE_URL + archivo
 
-                return {
-                    "fecha_rem": f"{mes}-{anio}",
-                    "url": url,
-                    "datos": {str(p): float(v) for p, v in zip(periodos, valores)}
-                }
+    # 3. Leer Excel
+    df = pd.read_excel(url, sheet_name="Cuadros de resultados", header=None)
 
-        except Exception as e:
-            print("Error:", e)
+    periodos = df.iloc[6:13, 1]
+    valores = df.iloc[6:13, 4]
 
-    raise HTTPException(status_code=404, detail="No se encontró un REM válido")
+    return {
+        "archivo": archivo,
+        "url": url,
+        "datos": {str(p): float(v) for p, v in zip(periodos, valores)}
+    }
 
-
-# =========================
-# 4. ENDPOINTS
-# =========================
 
 @app.get("/")
 def root():
-    return {"status": "API REM OK"}
+    return {"status": "ok"}
 
 
 @app.get("/rem/latest")
