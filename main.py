@@ -7,12 +7,18 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
+# =========================
+# 1. Crear la app
+# =========================
 app = FastAPI(
     title="REM BCRA API",
     description="API para obtener el último Relevamiento de Expectativas de Mercado",
     version="1.0.0"
 )
 
+# =========================
+# 2. Constantes
+# =========================
 MESES = {
     1: "ene", 2: "feb", 3: "mar", 4: "abr",
     5: "may", 6: "jun", 7: "jul", 8: "ago",
@@ -22,6 +28,9 @@ MESES = {
 BASE_URL = "https://www.bcra.gob.ar/archivos/Pdfs/PublicacionesEstadisticas/"
 
 
+# =========================
+# 3. Lógica principal
+# =========================
 def obtener_ultimo_rem(max_intentos=6):
     fecha = datetime.today().replace(day=1)
 
@@ -58,7 +67,16 @@ def obtener_ultimo_rem(max_intentos=6):
 
     raise HTTPException(status_code=404, detail="No se encontró un REM válido")
 
+
+# =========================
+# 4. ENDPOINTS
+# =========================
+
+@app.get("/")
+def root():
+    return {"status": "API REM OK"}
+
+
 @app.get("/rem/latest")
 def get_latest_rem():
     return obtener_ultimo_rem()
-
