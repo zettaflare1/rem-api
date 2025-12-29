@@ -25,6 +25,10 @@ BASE_URL = "https://www.bcra.gob.ar/archivos/Pdfs/PublicacionesEstadisticas/"
 def obtener_ultimo_rem(max_intentos=6):
     fecha = datetime.today().replace(day=1)
 
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
+
     for _ in range(max_intentos):
         fecha -= relativedelta(months=1)
 
@@ -35,7 +39,7 @@ def obtener_ultimo_rem(max_intentos=6):
         url = BASE_URL + nombre
 
         try:
-            r = requests.get(url, stream=True, timeout=10)
+            r = requests.get(url, headers=headers, stream=True, timeout=10)
 
             if r.status_code == 200:
                 df = pd.read_excel(url, sheet_name="Cuadros de resultados", header=None)
@@ -49,12 +53,7 @@ def obtener_ultimo_rem(max_intentos=6):
                     "datos": {str(p): float(v) for p, v in zip(periodos, valores)}
                 }
 
-        except Exception:
-            pass
+        except Exception as e:
+            print("Error:", e)
 
     raise HTTPException(status_code=404, detail="No se encontró un REM válido")
-
-
-@app.get("/rem/latest")
-def get_latest_rem():
-    return obtener_ultimo_rem()
